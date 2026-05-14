@@ -1,0 +1,213 @@
+import java.io.IOException;
+import java.util.StringTokenizer;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class WordCount {
+
+    public static class WCMapper
+            extends Mapper<Object, Text, Text, IntWritable> {
+
+        private final static IntWritable one =
+                new IntWritable(1);
+
+        private Text word = new Text();
+
+        public void map(Object key, Text value,
+                        Context context)
+                throws IOException, InterruptedException {
+
+            StringTokenizer itr =
+                    new StringTokenizer(value.toString());
+
+            while (itr.hasMoreTokens()) {
+
+                word.set(itr.nextToken());
+
+                context.write(word, one);
+            }
+        }
+    }
+
+    public static class WCReducer
+            extends Reducer<Text, IntWritable,
+                            Text, IntWritable> {
+
+        public void reduce(Text key,
+                           Iterable<IntWritable> values,
+                           Context context)
+                throws IOException, InterruptedException {
+
+            int sum = 0;
+
+            for (IntWritable val : values) {
+
+                sum += val.get();
+            }
+
+            context.write(key,
+                    new IntWritable(sum));
+        }
+    }
+
+    public static void main(String[] args)
+            throws Exception {
+
+        Configuration conf =
+                new Configuration();
+
+        Job job = Job.getInstance(conf,
+                "Word Count");
+
+        job.setJarByClass(WordCount.class);
+
+        job.setMapperClass(WCMapper.class);
+
+        job.setReducerClass(WCReducer.class);
+
+        job.setOutputKeyClass(Text.class);
+
+        job.setOutputValueClass(IntWritable.class);
+
+        FileInputFormat.addInputPath(job,
+                new Path(args[0]));
+
+        FileOutputFormat.setOutputPath(job,
+                new Path(args[1]));
+
+        System.exit(
+                job.waitForCompletion(true)
+                ? 0 : 1);
+    }
+}
+
+
+/*
+===================== EXPLANATION =====================
+
+1. WCMapper Class
+-----------------
+Mapper reads input line by line.
+
+Example Input:
+hello hadoop hello
+
+StringTokenizer splits line into:
+hello
+hadoop
+hello
+
+Mapper outputs:
+hello -> 1
+hadoop -> 1
+hello -> 1
+
+
+2. WCReducer Class
+------------------
+Reducer receives grouped values.
+
+Input to Reducer:
+hello -> [1,1]
+hadoop -> [1]
+
+Reducer adds values.
+
+For hello:
+1 + 1 = 2
+
+For hadoop:
+1 = 1
+
+Final Output:
+hello 2
+hadoop 1
+
+
+3. Main Method
+---------------
+Configuration:
+Creates Hadoop configuration.
+
+Job:
+Creates MapReduce job.
+
+setMapperClass():
+Sets Mapper class.
+
+setReducerClass():
+Sets Reducer class.
+
+setOutputKeyClass():
+Output key type = Text.
+
+setOutputValueClass():
+Output value type = IntWritable.
+
+Input Path:
+Reads input file.
+
+Output Path:
+Stores result.
+
+waitForCompletion(true):
+Runs Hadoop job.
+
+
+===================== DRY RUN =====================
+
+Input File:
+-------------
+hello java
+hello hadoop
+
+
+Step 1 : Mapper Output
+----------------------
+hello -> 1
+java -> 1
+hello -> 1
+hadoop -> 1
+
+
+Step 2 : Shuffle and Sort
+-------------------------
+hadoop -> [1]
+hello -> [1,1]
+java -> [1]
+
+
+Step 3 : Reducer Output
+-----------------------
+hadoop 1
+hello 2
+java 1
+
+
+===================== FLOW =====================
+
+Input File
+     ↓
+Mapper
+     ↓
+Key-Value Pairs
+     ↓
+Shuffle & Sort
+     ↓
+Reducer
+     ↓
+Final Output
+
+=================================================
+*/
